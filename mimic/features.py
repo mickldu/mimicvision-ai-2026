@@ -44,6 +44,42 @@ def _p(landmark) -> np.ndarray:
     return np.array([landmark.x, landmark.y])
 
 
+def calcular_bbox_persona(
+    pose: dict, ancho_imagen: int, alto_imagen: int, margen: float = 0.15
+) -> tuple[int, int, int, int]:
+    """Rectangulo (x, y, w, h) en pixeles que encierra a la persona.
+
+    Se calcula a partir de los mismos landmarks que ya usan las features
+    (hombros, codos, munecas, nariz) en vez de con todo el esqueleto de
+    pose, para que esto funcione igual con fotos de cuerpo completo y con
+    planos de medio cuerpo como los de HaGRID. El margen expande la caja
+    un porcentaje de su propio tamano para no recortar justo al borde del
+    cuerpo, y despues se recorta contra los limites de la imagen.
+    """
+    puntos = [
+        _p(pose[HOMBRO_IZQ]), _p(pose[HOMBRO_DER]),
+        _p(pose[CODO_IZQ]), _p(pose[CODO_DER]),
+        _p(pose[MUNECA_IZQ]), _p(pose[MUNECA_DER]),
+        _p(pose[NARIZ]),
+    ]
+    xs = [p[0] for p in puntos]
+    ys = [p[1] for p in puntos]
+    x_min, x_max = min(xs), max(xs)
+    y_min, y_max = min(ys), max(ys)
+
+    margen_x = (x_max - x_min) * margen
+    margen_y = (y_max - y_min) * margen
+    x_min, x_max = x_min - margen_x, x_max + margen_x
+    y_min, y_max = y_min - margen_y, y_max + margen_y
+
+    x_min_px = max(0, round(x_min * ancho_imagen))
+    y_min_px = max(0, round(y_min * alto_imagen))
+    x_max_px = min(ancho_imagen, round(x_max * ancho_imagen))
+    y_max_px = min(alto_imagen, round(y_max * alto_imagen))
+
+    return x_min_px, y_min_px, x_max_px - x_min_px, y_max_px - y_min_px
+
+
 def construir_vector_features(pose: dict, menton) -> list[float]:
     """Convierte landmarks crudos en el vector de 10 features de MIMIC.
 

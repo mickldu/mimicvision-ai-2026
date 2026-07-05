@@ -3,7 +3,7 @@ resultado por frame (PerceptionResult), tal como lo definimos en el
 diseno transversal del proyecto."""
 import numpy as np
 
-from mimic.features import NARIZ, construir_vector_features
+from mimic.features import NARIZ, calcular_bbox_persona, construir_vector_features
 
 
 def procesar_frame(frame, detector, modelo, timestamp: float) -> dict:
@@ -28,6 +28,8 @@ def procesar_frame(frame, detector, modelo, timestamp: float) -> dict:
         menton = resultado_landmarks.pose[NARIZ]
 
     vector = construir_vector_features(resultado_landmarks.pose, menton)
+    alto, ancho = frame.shape[:2]
+    bbox_persona = calcular_bbox_persona(resultado_landmarks.pose, ancho, alto)
     vector = np.array(vector).reshape(1, -1)
 
     etiqueta = modelo.predict(vector)[0]
@@ -37,7 +39,7 @@ def procesar_frame(frame, detector, modelo, timestamp: float) -> dict:
 
     return {
         "frame": frame,
-        "bbox_persona": None,
+        "bbox_persona": bbox_persona,
         "landmarks_normalizados": vector.tolist()[0],
         "etiqueta_pose": etiqueta,
         "confianza": confianza,

@@ -29,6 +29,11 @@ def test_procesar_frame_devuelve_perception_result_con_etiqueta():
     assert resultado["confianza"] == 0.9
     assert resultado["timestamp"] == 1.5
     assert resultado["frame"] is frame
+    # el bbox debe ser una caja valida dentro del frame de 100x100
+    x, y, w, h = resultado["bbox_persona"]
+    assert w > 0 and h > 0
+    assert 0 <= x and x + w <= 100
+    assert 0 <= y and y + h <= 100
 
 
 def test_procesar_frame_sin_persona_devuelve_etiqueta_none():
@@ -40,3 +45,4 @@ def test_procesar_frame_sin_persona_devuelve_etiqueta_none():
 
     assert resultado["etiqueta_pose"] is None
     assert resultado["confianza"] == 0.0
+    assert resultado["bbox_persona"] is None

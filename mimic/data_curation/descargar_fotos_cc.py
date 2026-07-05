@@ -42,16 +42,71 @@ LICENCIAS = "cc0,by,by-sa"
 # Consultas por clase. El solapamiento semantico entre "pensando" y
 # "mano_en_menton" es real y esperado: sera parte del analisis de
 # errores que pide la rubrica, no un defecto del script.
+#
+# Leccion de la primera pasada de curacion: la relevancia de Openverse
+# cae en picada despues de la primera pagina, y las consultas genericas
+# devuelven estatuas, cuadros y paisajes con gente diminuta. Por eso se
+# usan muchas consultas especificas y pocas paginas por consulta.
 CONSULTAS = {
-    "mano_en_menton": ["hand on chin", "hand on chin thinking", "stroking chin"],
-    "manos_juntas": ["hands clasped together person", "praying hands person", "namaste gesture"],
-    "senalamiento": ["person pointing finger", "man pointing finger", "woman pointing"],
-    "neutral": ["person standing portrait", "man standing looking at camera", "woman standing portrait"],
-    "zen": ["meditation pose person", "yoga meditation sitting", "zen meditation"],
-    "pensando": ["pensive person portrait", "thoughtful man", "thinking woman portrait"],
-    "brazos_cruzados": ["arms crossed person", "man with arms crossed", "woman arms crossed"],
-    "brazos_abiertos": ["arms outstretched person", "open arms happy person", "arms wide open"],
+    "mano_en_menton": [
+        "hand on chin", "hand on chin thinking", "stroking chin",
+        "thoughtful hand on chin portrait", "man stroking beard thinking",
+        "woman hand on chin",
+    ],
+    "manos_juntas": [
+        "hands clasped together person", "praying hands person", "namaste gesture",
+        "person praying portrait", "woman praying", "man praying church",
+        "child praying", "namaste greeting woman",
+    ],
+    "senalamiento": [
+        "person pointing finger", "man pointing finger", "woman pointing",
+        "man pointing at camera", "woman pointing finger portrait",
+        "teacher pointing", "pointing at you",
+    ],
+    "neutral": [
+        "person standing portrait", "man standing looking at camera", "woman standing portrait",
+        "man full length portrait standing", "woman standing full body",
+        "person standing relaxed",
+    ],
+    "zen": [
+        "meditation pose person", "yoga meditation sitting", "zen meditation",
+        "lotus position meditation", "man meditating outdoors", "woman meditating lotus",
+    ],
+    "pensando": [
+        "pensive person portrait", "thoughtful man", "thinking woman portrait",
+        "man deep in thought", "woman contemplating window", "pensive looking away",
+    ],
+    "brazos_cruzados": [
+        "arms crossed person", "man with arms crossed", "woman arms crossed",
+        "businessman arms folded", "woman arms folded portrait",
+        "arms folded studio portrait", "student arms folded",
+        "confident person arms folded",
+    ],
+    "brazos_abiertos": [
+        "arms outstretched person", "open arms happy person", "arms wide open",
+        "arms outstretched sunset", "man arms wide open",
+        "woman celebrating arms raised", "arms spread wide person",
+        "freedom arms open sky",
+    ],
 }
+
+# Palabras en el titulo o las etiquetas que delatan que la imagen no es
+# una foto de una persona real: estatuas, cuadros, tatuajes, carteles.
+# Este filtro nacio de revisar las hojas de contacto de la primera
+# pasada, donde estas categorias eran la mayor fuente de basura.
+PALABRAS_EXCLUIDAS = {
+    "statue", "sculpture", "monument", "painting", "drawing", "illustration",
+    "engraving", "tattoo", "poster", "cartoon", "clipart", "clip art",
+    "art print", "figurine", "carving", "mural", "sketch", "artwork",
+    "buddha", "sign", "album", "cover",
+}
+
+
+def _parece_no_fotografia(resultado: dict) -> bool:
+    texto = (resultado.get("title") or "").lower()
+    for etiqueta in resultado.get("tags") or []:
+        texto += " " + (etiqueta.get("name") or "").lower()
+    return any(palabra in texto for palabra in PALABRAS_EXCLUIDAS)
 
 
 def _buscar_openverse(consulta: str, pagina: int = 1) -> list[dict]:
@@ -112,9 +167,22 @@ def _generar_hoja_contacto(clase: str, carpeta: Path) -> None:
     cv2.imwrite(str(CARPETA_HOJAS / f"{clase}.jpg"), hoja)
 
 
+def _urls_ya_registradas() -> set:
+    """Toda URL que ya paso por una corrida anterior se salta, este o no
+    el archivo en disco: si fue borrada en la revision visual es porque
+    no servia, y volver a bajarla desharia la curacion."""
+    urls = set()
+    if RUTA_REGISTRO.exists():
+        with open(RUTA_REGISTRO, encoding="utf-8") as archivo:
+            for fila in csv.DictReader(archivo):
+                urls.add(fila["url_origen"])
+    return urls
+
+
 def main():
     detector = DetectorHolistic()
     RUTA_REGISTRO.parent.mkdir(parents=True, exist_ok=True)
+    urls_conocidas = _urls_ya_registradas()
 
     registro_nuevo = not RUTA_REGISTRO.exists()
     with open(RUTA_REGISTRO, "a", newline="", encoding="utf-8") as archivo:
@@ -135,7 +203,7 @@ def main():
             for consulta in consultas:
                 if guardadas >= OBJETIVO_POR_CLASE:
                     break
-                for pagina in (1, 2, 3):
+                for pagina in (1, 2):
                     if guardadas >= OBJETIVO_POR_CLASE:
                         break
                     for resultado in _buscar_openverse(consulta, pagina):
@@ -144,6 +212,10 @@ def main():
                         if resultado["id"] in ids_vistos:
                             continue
                         ids_vistos.add(resultado["id"])
+                        if resultado["url"] in urls_conocidas:
+                            continue
+                        if _parece_no_fotografia(resultado):
+                            continue
 
                         imagen = _descargar_imagen(resultado["url"])
                         if imagen is None:

@@ -40,7 +40,9 @@ def _abrir_con_reintentos(url: str, intentos: int = 5):
         except Exception:
             if intento == intentos - 1:
                 raise
-            time.sleep(2 ** intento)
+            # la espera arranca en 10s porque el limite de tasa de la API
+            # publica tarda bastante en liberarse tras un 429
+            time.sleep(10 * (2 ** intento))
 
 
 def _pedir_json(url: str) -> dict:

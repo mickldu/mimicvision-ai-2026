@@ -1,0 +1,18 @@
+{
+  "fecha": "2026-07-05",
+  "algoritmo": "random_forest",
+  "f1_macro_validacion": 0.3263,
+  "sklearn": "1.9.0",
+  "features": [
+    "angulo_codo_izq",
+    "angulo_codo_der",
+    "angulo_hombro_izq",
+    "angulo_hombro_der",
+    "inclinacion_cabeza",
+    "distancia_manos",
+    "distancia_mano_menton",
+    "distancia_mano_hombro_contrario",
+    "altura_manos_relativa",
+    "asimetria_manos"
+  ]
+}

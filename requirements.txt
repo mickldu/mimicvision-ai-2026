@@ -7,3 +7,4 @@ pandas==3.0.3
 gradio==6.19.0
 matplotlib==3.11.0
 pytest==9.1.1
+ipykernel==7.3.0

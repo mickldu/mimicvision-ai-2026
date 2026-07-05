@@ -31,7 +31,10 @@ Decisión explícita: **sin aumento de datos**. Las 8 clases curadas a mano qued
 
 ## 3. Percepción: MediaPipe Holistic
 
-Se usa **MediaPipe Holistic** (pose + manos + rostro en una sola pasada) en vez de detectores separados, porque varias clases dependen de la relación entre partes del cuerpo, no de una sola parte aislada:
+Se usa **MediaPipe Holistic** (pose + manos + rostro en una sola pasada) en vez de detectores separados, porque varias clases dependen de la relación entre partes del cuerpo, no de una sola parte aislada. Nota técnica verificada durante la implementación: la API vigente es `mediapipe.tasks.python.vision.HolisticLandmarker` (paquete `mediapipe` 0.10.35), no el módulo antiguo `mp.solutions.holistic` que ya no existe en esta versión. Requiere descargar el modelo `holistic_landmarker.task` (~14 MB) desde el repositorio de modelos de Google — se documenta como descarga, no se versiona en git. Devuelve hasta 33 puntos de pose, 478 de rostro y 21 por mano detectada.
+
+- "mano en el mentón" → distancia mano-rostro
+- "manos juntas" → distancia mano-mano
 
 - "mano en el mentón" → distancia mano-rostro
 - "manos juntas" → distancia mano-mano

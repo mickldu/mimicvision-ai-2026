@@ -32,8 +32,18 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-El modelo de landmarks de MediaPipe (~14 MB) y el dataset se descargan solos la primera
-vez que se usan; no estan versionados en el repositorio (ver "Datos y modelos").
+Si la maquina no tiene GPU (el caso mas comun en local), conviene instalar antes la
+version de PyTorch solo-CPU -- es mucho mas liviana que la version con CUDA que instala
+`requirements.txt` por defecto:
+
+```bash
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+```
+
+El modelo de landmarks de MediaPipe (~14 MB), los pesos de SigLIP2 (~800 MB) y el
+dataset se descargan solos la primera vez que se usan; no estan versionados en el
+repositorio (ver "Datos y modelos").
 
 ## Uso en Google Colab
 

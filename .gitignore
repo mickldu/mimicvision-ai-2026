@@ -1,0 +1,9 @@
+.claude/
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.joblib
+*.pkl
+*.faiss
+.ipynb_checkpoints/

@@ -8,5 +8,8 @@ venv/
 *.faiss
 *.task
 .ipynb_checkpoints/
-data/raw/
+# dentro de data/raw solo se versiona el registro de licencias; git no
+# entra a directorios ignorados por completo, por eso el patron con *
+data/raw/*
+!data/raw/cc_registro.csv
 data/images/

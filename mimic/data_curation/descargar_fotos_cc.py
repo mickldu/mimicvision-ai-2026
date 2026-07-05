@@ -225,8 +225,11 @@ def main():
                         if detector.procesar(imagen).pose is None:
                             continue
 
+                        # el nombre usa el id de Openverse y no un contador:
+                        # un contador se reinicia entre corridas y termina
+                        # sobrescribiendo fotos conservadas de pasadas previas
                         contador += 1
-                        nombre = f"cc_{clase}_{contador:03d}.jpg"
+                        nombre = f"cc_{clase}_{resultado['id'][:8]}.jpg"
                         cv2.imwrite(str(carpeta / nombre), imagen)
                         escritor.writerow([
                             nombre, clase, resultado["url"],

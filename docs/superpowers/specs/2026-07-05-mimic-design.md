@@ -41,9 +41,18 @@ Se usa **MediaPipe Holistic** (pose + manos + rostro en una sola pasada) en vez 
 - "señalamiento" → ángulo brazo-antebrazo + orientación de mano
 - "brazos cruzados" / "brazos abiertos" → posición de manos respecto al torso
 
-## 4. Features geométricas (mínimo 10, normalizadas)
+## 4. Features geométricas (10, normalizadas por ancho de hombros)
 
-Ángulo de codo (izquierdo y derecho), ángulo de hombro (izquierdo y derecho), ángulo de rodilla (izquierdo y derecho), inclinación de cabeza, distancia mano-mano, distancia mano-mentón, distancia mano-hombro contrario, apertura de brazos relativa al ancho de hombros. Todo normalizado por la distancia hombro-cadera de cada persona, para que la escala de la imagen no afecte la clasificación.
+Ajuste de diseño encontrado durante la implementación: las fotos de HaGRID son planos de medio cuerpo, sin cadera ni rodilla visibles. Usar esos puntos como referencia (como sugiere el docx de forma genérica) rompería las 2 clases que vienen de HaGRID. Por eso las 10 features se calculan solo con puntos que existen en ambas fuentes de datos: hombros, codos, muñecas, nariz y mentón. Se normalizan dividiendo por la distancia hombro-hombro (siempre visible), no por la distancia hombro-cadera.
+
+1. `angulo_codo_izq` / 2. `angulo_codo_der` — ángulo en el codo entre el vector hacia el hombro y el vector hacia la muñeca.
+3. `angulo_hombro_izq` / 4. `angulo_hombro_der` — ángulo entre el vector hombro→codo y la vertical de la imagen (aproxima si el brazo está pegado al cuerpo o levantado, sin necesitar la cadera).
+5. `inclinacion_cabeza` — ángulo entre el vector punto-medio-hombros→nariz y la vertical.
+6. `distancia_manos` — distancia muñeca izq-muñeca der, normalizada.
+7. `distancia_mano_menton` — mínimo entre (muñeca izq, mentón) y (muñeca der, mentón), normalizada. Usa el landmark 152 de la malla facial (mentón).
+8. `distancia_mano_hombro_contrario` — mínimo entre (muñeca izq, hombro der) y (muñeca der, hombro izq), normalizada — señal directa de brazos cruzados.
+9. `altura_manos_relativa` — altura promedio de las muñecas respecto al punto medio de hombros, normalizada — distingue manos arriba (cerca del rostro) de manos abajo.
+10. `asimetria_manos` — diferencia de altura entre muñeca izq y muñeca der, normalizada — distingue gestos de una sola mano (señalar, saludo) de posturas simétricas de dos manos (brazos cruzados, manos juntas).
 
 ## 5. Clasificador y evaluación
 

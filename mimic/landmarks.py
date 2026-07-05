@@ -12,6 +12,7 @@ from urllib.request import urlretrieve
 
 import cv2
 import mediapipe as mp
+import numpy as np
 from mediapipe.tasks.python import BaseOptions, vision
 
 URL_MODELO = (
@@ -21,6 +22,8 @@ URL_MODELO = (
 RUTA_MODELO = Path("models/holistic_landmarker.task")
 
 MENTON_INDICE = 152  # indice del menton en la malla facial de mediapipe
+
+LADO_LIENZO = 640  # tamano fijo del lienzo interno (ver procesar)
 
 
 @dataclass
@@ -46,8 +49,21 @@ class DetectorHolistic:
         self._landmarker = vision.HolisticLandmarker.create_from_options(opciones)
 
     def procesar(self, frame_bgr) -> ResultadoLandmarks:
+        # El landmarker de mediapipe 0.10.35 arrastra estado interno de
+        # segmentacion entre llamadas y crashea si dos frames seguidos
+        # tienen dimensiones distintas. Para blindarlo, cada frame se
+        # coloca sobre un lienzo cuadrado fijo con escala uniforme
+        # (letterbox): al ser una transformacion de similitud, los
+        # angulos y las distancias relativas que usan las features no
+        # se distorsionan.
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        imagen_mp = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
+        alto, ancho = frame_rgb.shape[:2]
+        escala = LADO_LIENZO / max(alto, ancho)
+        redimensionado = cv2.resize(frame_rgb, (int(ancho * escala), int(alto * escala)))
+        lienzo = np.zeros((LADO_LIENZO, LADO_LIENZO, 3), dtype=np.uint8)
+        lienzo[: redimensionado.shape[0], : redimensionado.shape[1]] = redimensionado
+
+        imagen_mp = mp.Image(image_format=mp.ImageFormat.SRGB, data=lienzo)
         resultado = self._landmarker.detect(imagen_mp)
 
         # HolisticLandmarker devuelve pose_landmarks y face_landmarks como

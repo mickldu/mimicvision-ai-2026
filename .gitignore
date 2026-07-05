@@ -6,4 +6,7 @@ venv/
 *.joblib
 *.pkl
 *.faiss
+*.task
 .ipynb_checkpoints/
+data/raw/
+data/images/

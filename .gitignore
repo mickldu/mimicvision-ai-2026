@@ -21,3 +21,5 @@ data/match_*.npz
 # que los descarga+concatena y el registro de fuentes/licencias
 data/videos/*
 !data/videos/video_prueba_registro.csv
+# generado por el notebook D3, se reconstruye en cada corrida
+data/event_store.json

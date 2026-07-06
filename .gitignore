@@ -17,3 +17,7 @@ data/images/
 # el notebook D2, no hace falta versionarlos (a diferencia de
 # features_mimic.csv, que es mucho mas liviano)
 data/match_*.npz
+# los videos crudos/compuestos de ASK no se versionan, solo el script
+# que los descarga+concatena y el registro de fuentes/licencias
+data/videos/*
+!data/videos/video_prueba_registro.csv

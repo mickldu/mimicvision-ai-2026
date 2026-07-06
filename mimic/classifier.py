@@ -7,6 +7,7 @@ from pathlib import Path
 
 import joblib
 import numpy as np
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import StratifiedKFold, cross_val_score
 from sklearn.svm import SVC
@@ -20,8 +21,12 @@ class ResultadoEntrenamiento:
 
 
 def entrenar_y_seleccionar(X, y) -> ResultadoEntrenamiento:
+    # El SVM se envuelve en CalibratedClassifierCV porque el pipeline en
+    # vivo necesita predict_proba para mostrar la confianza, y el viejo
+    # SVC(probability=True) esta deprecado en sklearn 1.9 y desaparece
+    # en 1.11 -- este es el reemplazo que la propia libreria recomienda.
     candidatos = {
-        "svm": SVC(kernel="rbf", probability=True),
+        "svm": CalibratedClassifierCV(SVC(kernel="rbf"), ensemble=False),
         "random_forest": RandomForestClassifier(n_estimators=200, random_state=42),
     }
 

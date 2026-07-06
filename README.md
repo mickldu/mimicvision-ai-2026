@@ -31,8 +31,8 @@ en modo en vivo (webcam).
 Requiere Python 3.11 o superior.
 
 ```bash
-git clone <URL_DEL_REPOSITORIO>
-cd mimicvision-ai
+git clone https://github.com/mickldu/mimicvision-ai-2026.git
+cd mimicvision-ai-2026
 python -m venv .venv
 # Windows:
 .venv\Scripts\activate

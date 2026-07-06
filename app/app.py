@@ -123,7 +123,11 @@ def procesar_video_ask(ruta_video):
 
     _inicializar()
     frames_muestreados = muestrear_frames_de_video(ruta_video, fps_muestreo=8.0)
-    eventos = construir_timeline(frames_muestreados, _detector, _modelo, tamano_ventana=5)
+    # tamano_ventana=15: el mismo valor que D3_ask_video.ipynb encontro
+    # mejor contra la verdad de terreno del video de prueba (seccion 2
+    # del notebook) -- con 5 el timeline queda fragmentado en decenas
+    # de micro-eventos por el parpadeo del clasificador entre frames.
+    eventos = construir_timeline(frames_muestreados, _detector, _modelo, tamano_ventana=15)
     resumen = "\n".join(f"{e['start_time']:.1f}s-{e['end_time']:.1f}s: {e['type']}" for e in eventos)
     return eventos, (resumen or "No se detectaron eventos.")
 

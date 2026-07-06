@@ -13,3 +13,7 @@ venv/
 data/raw/*
 !data/raw/cc_registro.csv
 data/images/
+# caches de embeddings/descriptores de MATCH: se regeneran solos desde
+# el notebook D2, no hace falta versionarlos (a diferencia de
+# features_mimic.csv, que es mucho mas liviano)
+data/match_*.npz

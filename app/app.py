@@ -1,5 +1,6 @@
-"""Interfaz Gradio de MimicVision AI. Tiene las pestanas de MIMIC y
-MATCH -- ASK se agregara en su propio sub-proyecto sin tocar estas dos.
+"""Interfaz Gradio de MimicVision AI. Tiene las pestanas de MIMIC,
+MATCH y ASK -- cada una se agrego en su propio sub-proyecto sin tocar
+las anteriores.
 
 Funciona igual en local y en Colab: la camara se captura con el
 componente de webcam de Gradio, que usa el navegador y no depende de
@@ -9,6 +10,7 @@ medir FPS reales sin la latencia del navegador.
 Uso:
     python -m app.app
 """
+import time
 from pathlib import Path
 
 import cv2
@@ -26,6 +28,8 @@ _detector = None
 _modelo = None
 _suavizador = SuavizadorTemporal()
 _indice_match = None
+_cliente_grounding = None
+_grounding_intentado = False
 
 
 def _inicializar():
@@ -94,6 +98,98 @@ def buscar_similares(imagen):
     return [r["ruta_archivo"] for r in resultados]
 
 
+def _obtener_cliente_grounding():
+    """Carga perezosa de LocateAnything-3B. Si el hardware no es
+    compatible (sin GPU Ampere+), se recuerda el fallo una sola vez en
+    vez de reintentar en cada consulta, y se devuelve None para que la
+    UI muestre un mensaje claro en lugar de fallar en cada clic."""
+    global _cliente_grounding, _grounding_intentado
+    if _grounding_intentado:
+        return _cliente_grounding
+    _grounding_intentado = True
+    from ask.grounding import ClienteLocateAnything, ErrorHardwareNoCompatible
+    try:
+        _cliente_grounding = ClienteLocateAnything()
+    except ErrorHardwareNoCompatible:
+        _cliente_grounding = None
+    return _cliente_grounding
+
+
+def procesar_video_ask(ruta_video):
+    if ruta_video is None:
+        return [], "Sube un video primero."
+    from ask.ingest import muestrear_frames_de_video
+    from ask.timeline import construir_timeline
+
+    _inicializar()
+    frames_muestreados = muestrear_frames_de_video(ruta_video, fps_muestreo=8.0)
+    eventos = construir_timeline(frames_muestreados, _detector, _modelo, tamano_ventana=5)
+    resumen = "\n".join(f"{e['start_time']:.1f}s-{e['end_time']:.1f}s: {e['type']}" for e in eventos)
+    return eventos, (resumen or "No se detectaron eventos.")
+
+
+def consultar_ask(consulta, eventos):
+    if not eventos:
+        return "Primero procesa un video para construir el timeline."
+    cliente = _obtener_cliente_grounding()
+    if cliente is None:
+        return (
+            "LocateAnything-3B no esta disponible en este entorno (requiere GPU "
+            "Ampere o superior, ver docs/superpowers/specs/2026-07-05-ask-design.md). "
+            "Corre este modo en Colab con GPU."
+        )
+    from ask.query_engine import responder_consulta
+    resultado = responder_consulta(consulta, eventos, cliente)
+    if resultado is None:
+        return "No se encontro ninguna coincidencia para esa consulta."
+    return f"{resultado['type']} entre {resultado['start_time']:.1f}s y {resultado['end_time']:.1f}s"
+
+
+def _frame_en_vivo_ask(imagen, estado):
+    """Actualiza el timeline en vivo un frame a la vez. El estado
+    (suavizador, evento abierto, eventos cerrados) vive en gr.State,
+    que Gradio mantiene por sesion entre llamadas."""
+    if imagen is None:
+        return estado, "Esperando imagen..."
+    _inicializar()
+    if estado is None:
+        estado = {"suavizador": SuavizadorTemporal(), "evento_abierto": None, "eventos": []}
+
+    resultado = procesar_frame(imagen[:, :, ::-1], _detector, _modelo, timestamp=time.time())
+    if resultado["etiqueta_pose"] is None:
+        return estado, f"Nadie detectado | Eventos cerrados: {len(estado['eventos'])}"
+
+    etiqueta_estable = estado["suavizador"].actualizar(resultado["etiqueta_pose"])
+    evento_abierto = estado["evento_abierto"]
+
+    if evento_abierto is None:
+        estado["evento_abierto"] = {
+            "type": etiqueta_estable, "start_time": resultado["timestamp"], "frames": [imagen],
+        }
+    elif evento_abierto["type"] != etiqueta_estable:
+        frames = evento_abierto["frames"]
+        estado["eventos"].append({
+            "type": evento_abierto["type"],
+            "start_time": evento_abierto["start_time"],
+            "end_time": resultado["timestamp"],
+            "duration_s": resultado["timestamp"] - evento_abierto["start_time"],
+            "frame_representativo": frames[len(frames) // 2],
+        })
+        estado["evento_abierto"] = {
+            "type": etiqueta_estable, "start_time": resultado["timestamp"], "frames": [imagen],
+        }
+    else:
+        evento_abierto["frames"].append(imagen)
+
+    return estado, f"Actual: {etiqueta_estable} | Eventos cerrados: {len(estado['eventos'])}"
+
+
+def consultar_ask_en_vivo(consulta, estado):
+    if estado is None or not estado["eventos"]:
+        return "Todavia no hay eventos acumulados en esta sesion en vivo."
+    return consultar_ask(consulta, estado["eventos"])
+
+
 def construir_demo() -> gr.Blocks:
     with gr.Blocks(title="MimicVision AI") as demo:
         gr.Markdown("# MimicVision AI")
@@ -114,6 +210,44 @@ def construir_demo() -> gr.Blocks:
             galeria_resultados = gr.Gallery(label="Top 5 mas similares", columns=5)
             boton_buscar = gr.Button("Buscar")
             boton_buscar.click(buscar_similares, inputs=entrada_match, outputs=galeria_resultados)
+        with gr.Tab("ASK"):
+            gr.Markdown(
+                "Video o camara en vivo: construye una linea temporal de poses/gestos "
+                "y responde una consulta en lenguaje natural con evidencia. "
+                "El grounding con LocateAnything-3B requiere GPU (Colab)."
+            )
+            eventos_video_state = gr.State([])
+            with gr.Tab("Video"):
+                entrada_video_ask = gr.Video(label="Video a analizar")
+                boton_procesar = gr.Button("Construir timeline")
+                resumen_timeline = gr.Textbox(label="Eventos detectados", lines=6)
+                consulta_video = gr.Textbox(label="Consulta en lenguaje natural")
+                boton_consultar_video = gr.Button("Consultar")
+                respuesta_video = gr.Textbox(label="Respuesta")
+
+                boton_procesar.click(
+                    procesar_video_ask, inputs=entrada_video_ask,
+                    outputs=[eventos_video_state, resumen_timeline],
+                )
+                boton_consultar_video.click(
+                    consultar_ask, inputs=[consulta_video, eventos_video_state],
+                    outputs=respuesta_video,
+                )
+            with gr.Tab("En vivo"):
+                estado_en_vivo = gr.State(None)
+                entrada_en_vivo = gr.Image(sources=["webcam"], streaming=True)
+                estado_texto_en_vivo = gr.Textbox(label="Estado del timeline en vivo")
+                entrada_en_vivo.stream(
+                    _frame_en_vivo_ask, inputs=[entrada_en_vivo, estado_en_vivo],
+                    outputs=[estado_en_vivo, estado_texto_en_vivo],
+                )
+                consulta_en_vivo = gr.Textbox(label="Consulta en lenguaje natural")
+                boton_consultar_en_vivo = gr.Button("Consultar")
+                respuesta_en_vivo = gr.Textbox(label="Respuesta")
+                boton_consultar_en_vivo.click(
+                    consultar_ask_en_vivo, inputs=[consulta_en_vivo, estado_en_vivo],
+                    outputs=respuesta_en_vivo,
+                )
     return demo
 
 

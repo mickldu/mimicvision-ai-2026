@@ -1,6 +1,5 @@
-"""Interfaz Gradio de MimicVision AI. Por ahora solo tiene la pestana
-de MIMIC -- MATCH y ASK se agregaran en sus propios sub-proyectos sin
-tocar esta pestana.
+"""Interfaz Gradio de MimicVision AI. Tiene las pestanas de MIMIC y
+MATCH -- ASK se agregara en su propio sub-proyecto sin tocar estas dos.
 
 Funciona igual en local y en Colab: la camara se captura con el
 componente de webcam de Gradio, que usa el navegador y no depende de
@@ -12,7 +11,9 @@ Uso:
 """
 from pathlib import Path
 
+import cv2
 import gradio as gr
+import numpy as np
 
 from mimic.classifier import cargar_modelo
 from mimic.landmarks import DetectorHolistic
@@ -24,6 +25,7 @@ RUTA_MODELO = Path("models/mimic_clasificador.joblib")
 _detector = None
 _modelo = None
 _suavizador = SuavizadorTemporal()
+_indice_match = None
 
 
 def _inicializar():
@@ -54,6 +56,44 @@ def clasificar_frame(imagen):
     return f"{etiqueta_estable} (confianza: {resultado['confianza']:.2f})"
 
 
+def _inicializar_match():
+    """Carga perezosa del indice de MATCH: construye la galeria de
+    embeddings SigLIP2 la primera vez que alguien busca, no al importar
+    el modulo (mismo patron que _inicializar() de MIMIC)."""
+    global _indice_match
+    if _indice_match is not None:
+        return
+
+    from match.embeddings import ExtractorSigLIP2
+    from match.gallery import cargar_galeria_y_consultas
+    from match.index import IndiceSimilitud
+
+    galeria, _ = cargar_galeria_y_consultas()
+    extractor = ExtractorSigLIP2()
+    vectores, metadatos = [], []
+    for fila in galeria.itertuples():
+        imagen = cv2.imread(fila.ruta)
+        if imagen is None:
+            continue
+        vectores.append(extractor.extraer(imagen))
+        metadatos.append({
+            "image_id": fila.sample_id,
+            "etiqueta_pose": fila.clase,
+            "ruta_archivo": fila.ruta,
+        })
+    _indice_match = (IndiceSimilitud(np.array(vectores), metadatos), extractor)
+
+
+def buscar_similares(imagen):
+    if imagen is None:
+        return []
+    _inicializar_match()
+    indice, extractor = _indice_match
+    vector_consulta = extractor.extraer(imagen[:, :, ::-1])
+    resultados = indice.buscar(vector_consulta, k=5)
+    return [r["ruta_archivo"] for r in resultados]
+
+
 def construir_demo() -> gr.Blocks:
     with gr.Blocks(title="MimicVision AI") as demo:
         gr.Markdown("# MimicVision AI")
@@ -65,6 +105,15 @@ def construir_demo() -> gr.Blocks:
             entrada = gr.Image(sources=["webcam"], streaming=True)
             salida = gr.Textbox(label="Pose o gesto detectado")
             entrada.stream(clasificar_frame, inputs=entrada, outputs=salida)
+        with gr.Tab("MATCH"):
+            gr.Markdown(
+                "Sube o captura una foto y el sistema busca las 5 imagenes "
+                "mas parecidas en la galeria de MIMIC."
+            )
+            entrada_match = gr.Image(sources=["upload", "webcam"])
+            galeria_resultados = gr.Gallery(label="Top 5 mas similares", columns=5)
+            boton_buscar = gr.Button("Buscar")
+            boton_buscar.click(buscar_similares, inputs=entrada_match, outputs=galeria_resultados)
     return demo
 
 
